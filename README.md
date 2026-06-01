@@ -78,6 +78,20 @@ Qdrant                  OpenAI API
 
 ## Quick start
 
+### Docker Hub (easiest)
+
+```bash
+docker run -e OPENAI_API_KEY=sk-... -p 8000:8000 dhivakarav/semantic-cache
+```
+
+The proxy is immediately available at `http://localhost:8000`.
+
+### With Docker Compose
+
+```bash
+OPENAI_API_KEY=sk-... docker-compose -f docker/docker-compose.yml up
+```
+
 ### Without Docker (local)
 
 ```bash
@@ -95,14 +109,6 @@ docker run -p 6333:6333 qdrant/qdrant
 # 4. Run the proxy
 uvicorn src.proxy.server:app --host 0.0.0.0 --port 8000
 ```
-
-### With Docker Compose
-
-```bash
-OPENAI_API_KEY=sk-... docker-compose -f docker/docker-compose.yml up
-```
-
-The proxy is now available at `http://localhost:8000` — drop it in as a replacement for `https://api.openai.com`.
 
 ---
 
