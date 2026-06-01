@@ -214,3 +214,5 @@ semantic-cache/
 ---
 
 Built as a final year B.Tech project — SRM IST-Trichy, CSE AI/ML (2027).
+
+**Dhivakar A V** — [GitHub](https://github.com/dhivakarav) · [LinkedIn](https://www.linkedin.com/in/dhivakar-a-v-b58215377/)
