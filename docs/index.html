@@ -3,431 +3,419 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Semantic Cache — Stop Paying for Duplicate LLM Calls</title>
+  <title>Semantic Cache — LLM Inference Caching Layer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:      #05050a;
-      --s1:      #0b0b12;
-      --s2:      #0f0f1a;
-      --border:  rgba(255,255,255,.07);
-      --cyan:    #00e5ff;
-      --purple:  #b06ef3;
-      --green:   #00e676;
-      --red:     #ff5252;
-      --yellow:  #ffd740;
-      --text:    #f0f4ff;
-      --sub:     #8892a4;
-      --dim:     #4a5568;
-      --glow:    rgba(0,229,255,.15);
+      --bg:       #0d0d12;
+      --s1:       #13131a;
+      --s2:       #18181f;
+      --border:   rgba(255,255,255,.08);
+      --border2:  rgba(255,255,255,.05);
+      --violet:   #7c3aed;
+      --violet2:  #a78bfa;
+      --pink:     #ec4899;
+      --cyan:     #06b6d4;
+      --green:    #10b981;
+      --red:      #ef4444;
+      --yellow:   #f59e0b;
+      --text:     #f8fafc;
+      --sub:      #94a3b8;
+      --dim:      #475569;
+      --gv:       rgba(124,58,237,.18);
+      --gp:       rgba(236,72,153,.12);
+      --gc:       rgba(6,182,212,.12);
     }
 
     html { scroll-behavior: smooth; }
-
     body {
       background: var(--bg);
       color: var(--text);
       font-family: 'Inter', system-ui, sans-serif;
       line-height: 1.6;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(124,58,237,.4); border-radius: 4px; }
 
-    /* ── Grid overlay ── */
-    body::before {
-      content: '';
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image:
-        linear-gradient(var(--border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 60px 60px;
-      mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black 30%, transparent 100%);
-      opacity: .4;
-    }
-
-    /* ── Nav ── */
+    /* ═══ NAV ═══ */
     nav {
-      position: fixed; top: 0; inset-x: 0; z-index: 200;
+      position: fixed; top: 0; inset-x: 0; z-index: 300;
       display: flex; align-items: center; justify-content: space-between;
-      padding: .9rem 2.5rem;
-      border-bottom: 1px solid var(--border);
-      background: rgba(5,5,10,.8);
-      backdrop-filter: blur(20px);
+      padding: 0 2.5rem; height: 60px;
+      background: rgba(13,13,18,.85);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--border2);
     }
     .logo {
-      display: flex; align-items: center; gap: .6rem;
-      text-decoration: none; font-family: 'JetBrains Mono', monospace;
-      font-weight: 700; font-size: .9rem;
-    }
-    .logo-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--cyan);
-      box-shadow: 0 0 8px var(--cyan);
-      animation: pulse-dot 2s infinite;
-    }
-    @keyframes pulse-dot {
-      0%,100% { box-shadow: 0 0 8px var(--cyan); }
-      50%      { box-shadow: 0 0 18px var(--cyan); }
-    }
-    .logo-text { color: var(--text); }
-    .logo-text span { color: var(--cyan); }
-    nav ul { display: flex; gap: 2rem; list-style: none; }
-    nav ul a { color: var(--sub); text-decoration: none; font-size: .85rem; font-weight: 500; transition: color .2s; }
-    nav ul a:hover { color: var(--text); }
-    .nav-gh {
       display: flex; align-items: center; gap: .5rem;
-      background: var(--s2); border: 1px solid var(--border);
-      color: var(--text); text-decoration: none;
-      padding: .45rem 1rem; border-radius: 6px;
-      font-size: .82rem; font-weight: 600; transition: border-color .2s;
+      text-decoration: none; font-weight: 700; font-size: .95rem;
     }
-    .nav-gh:hover { border-color: var(--cyan); color: var(--cyan); }
-    .nav-gh svg { width: 16px; height: 16px; fill: currentColor; }
+    .logo-icon {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: linear-gradient(135deg, var(--violet), var(--pink));
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 900; color: #fff;
+    }
+    .logo span { color: var(--text); }
+    .logo em { font-style: normal; color: var(--violet2); }
+    nav ul { display: flex; gap: 0; list-style: none; }
+    nav ul a {
+      color: var(--sub); text-decoration: none;
+      font-size: .85rem; font-weight: 500;
+      padding: .4rem .85rem; border-radius: 6px;
+      transition: color .2s, background .2s;
+    }
+    nav ul a:hover { color: var(--text); background: rgba(255,255,255,.04); }
+    .nav-right { display: flex; align-items: center; gap: .6rem; }
+    .nav-link {
+      color: var(--sub); text-decoration: none; font-size: .85rem;
+      font-weight: 500; padding: .4rem .7rem; border-radius: 6px;
+      transition: color .2s;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-btn {
+      background: var(--violet); color: #fff;
+      text-decoration: none; font-size: .82rem; font-weight: 600;
+      padding: .45rem 1.1rem; border-radius: 7px;
+      transition: background .2s, transform .15s;
+    }
+    .nav-btn:hover { background: #6d28d9; transform: translateY(-1px); }
 
-    /* ── Hero ── */
+    /* ═══ HERO ═══ */
     .hero {
-      position: relative; z-index: 1;
+      position: relative;
       min-height: 100vh;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 8rem 2rem 5rem;
       text-align: center;
+      padding: 8rem 2rem 6rem;
       overflow: hidden;
     }
-    .hero-glow {
-      position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
-      width: 900px; height: 500px;
-      background: radial-gradient(ellipse, rgba(0,229,255,.1) 0%, transparent 70%);
-      pointer-events: none;
+
+    /* Figma-style radial blobs */
+    .blob {
+      position: absolute; border-radius: 50%;
+      filter: blur(80px); pointer-events: none;
     }
-    .hero-glow-2 {
-      position: absolute; top: 30%; right: -10%;
-      width: 500px; height: 500px;
-      background: radial-gradient(ellipse, rgba(176,110,243,.07) 0%, transparent 70%);
-      pointer-events: none;
+    .blob-1 {
+      width: 700px; height: 500px; top: -10%; left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse, rgba(124,58,237,.22), transparent 70%);
+    }
+    .blob-2 {
+      width: 400px; height: 400px; top: 20%; right: -5%;
+      background: radial-gradient(ellipse, rgba(236,72,153,.14), transparent 70%);
+    }
+    .blob-3 {
+      width: 350px; height: 350px; bottom: 10%; left: 0%;
+      background: radial-gradient(ellipse, rgba(6,182,212,.1), transparent 70%);
     }
 
-    .tag {
-      display: inline-flex; align-items: center; gap: .5rem;
-      border: 1px solid rgba(0,229,255,.2);
-      background: rgba(0,229,255,.05);
-      border-radius: 999px; padding: .3rem 1rem;
-      font-size: .72rem; font-weight: 600; letter-spacing: .08em;
-      color: var(--cyan); text-transform: uppercase;
-      margin-bottom: 2rem;
+    /* Subtle dot grid */
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent);
     }
-    .tag-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); animation: pulse-dot 2s infinite; }
+
+    .hero-inner { position: relative; z-index: 1; max-width: 800px; }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: .5rem;
+      background: rgba(124,58,237,.12); border: 1px solid rgba(124,58,237,.3);
+      border-radius: 999px; padding: .3rem .9rem;
+      font-size: .72rem; font-weight: 600; letter-spacing: .05em;
+      color: var(--violet2); margin-bottom: 2rem;
+    }
+    .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--violet2); animation: glow-pulse 2s infinite; }
+    @keyframes glow-pulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--violet2)} 50%{opacity:.4;box-shadow:none} }
 
     h1 {
-      font-size: clamp(2.8rem, 7vw, 5.5rem);
-      font-weight: 900;
-      line-height: 1.0;
+      font-size: clamp(2.6rem, 6.5vw, 5rem);
+      font-weight: 900; line-height: 1.05;
       letter-spacing: -.04em;
-      margin-bottom: 1.8rem;
+      margin-bottom: 1.6rem;
     }
-    h1 em {
-      font-style: normal;
-      background: linear-gradient(135deg, var(--cyan), var(--purple));
+    .grad-text {
+      background: linear-gradient(135deg, #c4b5fd 0%, #f0abfc 40%, #f9a8d4 70%, #67e8f9 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
     }
+
     .hero-sub {
-      font-size: clamp(1rem, 2vw, 1.2rem);
-      color: var(--sub); max-width: 540px;
-      margin: 0 auto 3rem; line-height: 1.75; font-weight: 400;
+      font-size: clamp(1rem, 2vw, 1.18rem);
+      color: var(--sub); max-width: 560px;
+      margin: 0 auto 2.8rem; line-height: 1.8; font-weight: 400;
     }
     .hero-sub strong { color: var(--text); font-weight: 600; }
 
-    .hero-cta { display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; margin-bottom: 5rem; }
-    .btn-a {
-      display: flex; align-items: center; gap: .5rem;
-      background: var(--cyan); color: #000;
-      padding: .75rem 1.8rem; border-radius: 8px;
-      font-weight: 700; font-size: .9rem; text-decoration: none;
+    .hero-btns { display: flex; gap: .7rem; justify-content: center; flex-wrap: wrap; margin-bottom: 4rem; }
+    .btn-violet {
+      display: inline-flex; align-items: center; gap: .5rem;
+      background: linear-gradient(135deg, var(--violet), #9333ea);
+      color: #fff; padding: .7rem 1.6rem; border-radius: 8px;
+      font-weight: 600; font-size: .9rem; text-decoration: none;
+      box-shadow: 0 4px 24px rgba(124,58,237,.35);
       transition: transform .15s, box-shadow .15s;
-      box-shadow: 0 0 0 rgba(0,229,255,0);
     }
-    .btn-a:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,229,255,.3); }
-    .btn-b {
-      display: flex; align-items: center; gap: .5rem;
-      border: 1px solid var(--border); color: var(--sub);
-      padding: .75rem 1.8rem; border-radius: 8px;
+    .btn-violet:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(124,58,237,.5); }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: .5rem;
+      border: 1px solid var(--border);
+      color: var(--sub); padding: .7rem 1.6rem; border-radius: 8px;
       font-size: .9rem; font-weight: 500; text-decoration: none;
       transition: border-color .2s, color .2s;
     }
-    .btn-b:hover { border-color: var(--cyan); color: var(--cyan); }
+    .btn-ghost:hover { border-color: rgba(167,139,250,.4); color: var(--text); }
 
-    /* ── Perf bar ── */
-    .perf-card {
-      background: var(--s1); border: 1px solid var(--border);
-      border-radius: 16px; padding: 2rem 2.5rem;
-      max-width: 680px; width: 100%;
-      box-shadow: 0 0 60px rgba(0,229,255,.05);
+    /* ═══ PERF CARD ═══ */
+    .perf-wrap {
+      background: linear-gradient(145deg, rgba(124,58,237,.1), rgba(236,72,153,.06));
+      border: 1px solid rgba(124,58,237,.2);
+      border-radius: 20px; padding: 2rem 2.4rem;
+      max-width: 640px; width: 100%;
+      box-shadow: 0 0 80px rgba(124,58,237,.1), inset 0 1px 0 rgba(255,255,255,.06);
+      backdrop-filter: blur(10px);
     }
-    .perf-title { font-size: .7rem; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 1.5rem; font-family: 'JetBrains Mono', monospace; }
-    .perf-row { margin-bottom: 1.1rem; }
-    .perf-label { display: flex; justify-content: space-between; margin-bottom: .4rem; font-size: .82rem; }
-    .perf-label span:first-child { color: var(--sub); }
-    .perf-label .val { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
-    .miss-val { color: var(--red); }
-    .hit-val  { color: var(--green); }
-    .bar-track { height: 6px; background: rgba(255,255,255,.05); border-radius: 999px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 999px; width: 0; transition: width 1.4s cubic-bezier(.22,1,.36,1); }
-    .miss-bar { background: linear-gradient(90deg, var(--red), #ff8a65); }
-    .hit-bar  { background: linear-gradient(90deg, var(--green), #69f0ae); }
-    .stream-bar { background: linear-gradient(90deg, var(--cyan), #80deea); }
-    .stream-val { color: var(--cyan); }
+    .perf-head { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-bottom: 1.4rem; font-weight: 600; }
+    .perf-row { margin-bottom: 1rem; }
+    .perf-row:last-child { margin-bottom: 0; }
+    .perf-meta { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: .35rem; }
+    .perf-meta span { color: var(--sub); }
+    .perf-val { font-weight: 700; font-size: .82rem; }
+    .v-red  { color: #f87171; }
+    .v-grn  { color: #34d399; }
+    .v-cyan { color: #22d3ee; }
+    .bar { height: 5px; background: rgba(255,255,255,.05); border-radius: 999px; overflow: hidden; }
+    .bar-inner { height: 100%; border-radius: 999px; width: 0; transition: width 1.5s cubic-bezier(.16,1,.3,1); }
+    .b-red  { background: linear-gradient(90deg,#ef4444,#f87171); }
+    .b-grn  { background: linear-gradient(90deg,#10b981,#34d399); }
+    .b-cyan { background: linear-gradient(90deg,#06b6d4,#22d3ee); }
 
-    /* ── Stats row ── */
-    .stats-row {
-      display: flex; justify-content: center; gap: 4rem;
-      flex-wrap: wrap; padding: 4rem 2rem;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
+    /* ═══ STATS ═══ */
+    .stats-strip {
+      display: flex; justify-content: center;
+      gap: 0; flex-wrap: wrap;
+      border-top: 1px solid var(--border2);
+      border-bottom: 1px solid var(--border2);
       background: var(--s1);
       position: relative; z-index: 1;
     }
-    .stat { text-align: center; }
+    .stat-item {
+      flex: 1; min-width: 160px;
+      padding: 2.2rem 1rem; text-align: center;
+      border-right: 1px solid var(--border2);
+    }
+    .stat-item:last-child { border-right: none; }
     .stat-n {
-      font-size: 3rem; font-weight: 900; line-height: 1;
-      font-family: 'JetBrains Mono', monospace;
-      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      font-size: 2.6rem; font-weight: 900; line-height: 1;
+      background: linear-gradient(135deg, var(--violet2), var(--pink));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
+      margin-bottom: .3rem;
     }
-    .stat-n sup { font-size: 1.2rem; }
-    .stat-l { font-size: .78rem; color: var(--sub); margin-top: .4rem; font-weight: 500; }
+    .stat-l { font-size: .75rem; color: var(--sub); font-weight: 500; }
 
-    /* ── Section base ── */
-    .section { padding: 7rem 2rem; max-width: 1140px; margin: 0 auto; position: relative; z-index: 1; }
+    /* ═══ SECTIONS ═══ */
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+    .sec { padding: 7rem 0; }
     .eyebrow {
-      font-family: 'JetBrains Mono', monospace;
       font-size: .7rem; font-weight: 700; letter-spacing: .14em;
-      text-transform: uppercase; color: var(--cyan);
-      margin-bottom: 1rem;
+      text-transform: uppercase; color: var(--violet2); margin-bottom: .8rem;
     }
     h2 {
-      font-size: clamp(1.8rem, 4vw, 2.8rem);
-      font-weight: 800; letter-spacing: -.03em;
-      line-height: 1.15; margin-bottom: 1rem;
+      font-size: clamp(1.8rem, 3.8vw, 2.8rem);
+      font-weight: 800; letter-spacing: -.03em; line-height: 1.15;
+      margin-bottom: 1rem;
     }
-    h2 em { font-style: normal; color: var(--cyan); }
-    .section-sub {
-      color: var(--sub); max-width: 500px;
-      font-size: 1rem; line-height: 1.75;
-      margin-bottom: 3.5rem;
-    }
+    .sub { color: var(--sub); font-size: .98rem; line-height: 1.75; max-width: 480px; margin-bottom: 3rem; }
 
-    /* ── How it works ── */
+    /* ═══ STEPS ═══ */
     .steps {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1px; background: var(--border);
-      border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+      display: grid; grid-template-columns: repeat(4,1fr);
+      border: 1px solid var(--border); border-radius: 16px;
+      overflow: hidden; background: var(--border2);
+      gap: 1px;
     }
     .step {
       background: var(--s1); padding: 2rem 1.6rem;
       transition: background .2s;
-      position: relative; overflow: hidden;
     }
-    .step::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: linear-gradient(135deg, rgba(0,229,255,.05), transparent);
-      opacity: 0; transition: opacity .3s;
-    }
-    .step:hover::before { opacity: 1; }
+    .step:hover { background: rgba(124,58,237,.07); }
     .step-num {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .7rem; font-weight: 700; color: var(--cyan);
-      letter-spacing: .1em; margin-bottom: 1.2rem; display: block;
+      font-size: .65rem; font-weight: 800; letter-spacing: .1em;
+      color: var(--violet2); text-transform: uppercase; margin-bottom: 1rem; display: block;
     }
-    .step-icon { font-size: 1.8rem; margin-bottom: .9rem; display: block; }
-    .step h3 { font-size: 1rem; font-weight: 700; margin-bottom: .6rem; }
-    .step p { font-size: .82rem; color: var(--sub); line-height: 1.65; }
+    .step-icon { font-size: 1.6rem; margin-bottom: .8rem; display: block; }
+    .step h3 { font-size: .95rem; font-weight: 700; margin-bottom: .5rem; }
+    .step p { font-size: .8rem; color: var(--sub); line-height: 1.65; }
+    code { font-family: 'SF Mono','Fira Code',monospace; font-size: .8em; background: rgba(255,255,255,.06); padding: .1em .35em; border-radius: 4px; color: var(--violet2); }
 
-    /* ── Features ── */
+    /* ═══ FEATURES ═══ */
     .feat-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: .8rem;
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 1px;
+      border: 1px solid var(--border); border-radius: 16px;
+      overflow: hidden; background: var(--border2);
     }
     .feat {
-      background: var(--s1); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.8rem;
-      transition: border-color .25s, transform .25s, box-shadow .25s;
+      background: var(--s1); padding: 2rem;
+      transition: background .2s;
       cursor: default;
     }
-    .feat:hover {
-      border-color: rgba(0,229,255,.3);
-      transform: translateY(-3px);
-      box-shadow: 0 12px 40px rgba(0,229,255,.07);
-    }
-    .feat-icon {
-      width: 40px; height: 40px; border-radius: 10px;
+    .feat:hover { background: rgba(124,58,237,.06); }
+    .feat-ico {
+      width: 42px; height: 42px; border-radius: 11px;
+      background: linear-gradient(135deg, rgba(124,58,237,.2), rgba(236,72,153,.15));
+      border: 1px solid rgba(124,58,237,.2);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.2rem; margin-bottom: 1rem;
-      background: rgba(0,229,255,.08); border: 1px solid rgba(0,229,255,.15);
+      font-size: 1.15rem; margin-bottom: 1.1rem;
     }
-    .feat h3 { font-size: .95rem; font-weight: 700; margin-bottom: .5rem; color: var(--text); }
-    .feat p { font-size: .82rem; color: var(--sub); line-height: 1.65; }
-    .feat code {
-      font-family: 'JetBrains Mono', monospace; font-size: .78rem;
-      background: rgba(255,255,255,.06); border-radius: 4px;
-      padding: .1em .35em; color: var(--cyan);
-    }
+    .feat h3 { font-size: .95rem; font-weight: 700; margin-bottom: .5rem; }
+    .feat p  { font-size: .8rem; color: var(--sub); line-height: 1.65; }
 
-    /* ── Threshold viz ── */
-    .thresh-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+    /* ═══ THRESHOLDS ═══ */
+    .thresh-row { display: grid; grid-template-columns: repeat(3,1fr); gap: .8rem; }
     .thresh {
       background: var(--s1); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.6rem; text-align: center;
+      border-radius: 14px; padding: 1.6rem; text-align: center;
       position: relative; overflow: hidden;
+      transition: transform .2s, border-color .2s;
     }
-    .thresh::after {
-      content: '';
-      position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+    .thresh:hover { transform: translateY(-2px); border-color: rgba(124,58,237,.3); }
+    .thresh::before {
+      content: ''; position: absolute; inset-x: 0; top: 0; height: 2px;
+      border-radius: 2px 2px 0 0;
     }
-    .thresh.t-factual::after  { background: var(--cyan); }
-    .thresh.t-code::after     { background: var(--yellow); }
-    .thresh.t-creative::after { background: var(--purple); }
-    .thresh-type { font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; color: var(--dim); font-weight: 600; margin-bottom: .5rem; }
-    .thresh-val { font-size: 2.8rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1; margin-bottom: .4rem; }
-    .t-factual  .thresh-val { color: var(--cyan); }
-    .t-code     .thresh-val { color: var(--yellow); }
-    .t-creative .thresh-val { color: var(--purple); }
-    .thresh-desc { font-size: .78rem; color: var(--sub); line-height: 1.5; }
+    .th-v::before { background: linear-gradient(90deg, var(--violet), var(--violet2)); }
+    .th-y::before { background: linear-gradient(90deg, var(--yellow), #fbbf24); }
+    .th-p::before { background: linear-gradient(90deg, var(--pink), #f472b6); }
+    .thresh-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .12em; color: var(--dim); font-weight: 700; margin-bottom: .5rem; }
+    .thresh-n { font-size: 2.8rem; font-weight: 900; line-height: 1; margin-bottom: .4rem; font-feature-settings: 'tnum'; }
+    .th-v .thresh-n { background: linear-gradient(135deg, var(--violet2), #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .th-y .thresh-n { background: linear-gradient(135deg, var(--yellow), #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .th-p .thresh-n { background: linear-gradient(135deg, var(--pink), #f472b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .thresh-desc { font-size: .75rem; color: var(--sub); line-height: 1.5; }
 
-    /* ── Code block ── */
-    .code-wrap {
-      background: #080810; border: 1px solid var(--border);
-      border-radius: 12px; overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,.5);
-    }
-    .code-top {
-      display: flex; align-items: center; gap: .5rem;
-      padding: .8rem 1.2rem; background: #0e0e18;
-      border-bottom: 1px solid var(--border);
-    }
-    .cd { width: 11px; height: 11px; border-radius: 50%; }
-    .cd-r { background: #ff5f57; }
-    .cd-y { background: #febc2e; }
-    .cd-g { background: #28c840; }
-    .code-file { margin-left: auto; margin-right: auto; font-size: .72rem; color: var(--dim); font-family: 'JetBrains Mono', monospace; }
-    .code-body {
-      padding: 1.6rem 1.8rem; font-family: 'JetBrains Mono', monospace;
-      font-size: .82rem; line-height: 1.9; overflow-x: auto;
-    }
-    .ln  { color: var(--dim); user-select: none; margin-right: 1.5rem; display: inline-block; width: 1.5rem; text-align: right; }
-    .kw  { color: #c792ea; }
-    .fn  { color: #82aaff; }
-    .str { color: #c3e88d; }
-    .cm  { color: var(--dim); font-style: italic; }
-    .cl  { color: var(--yellow); }
-    .hd  { color: var(--cyan); }
+    /* ═══ SPLIT ═══ */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; }
+    .split-r { grid-template-columns: 1fr 1fr; }
+    .split-r .split-text { order: 2; }
+    .split-r .split-visual { order: 1; }
 
-    /* ── Split layout ── */
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
-    .split.flip { direction: rtl; }
-    .split.flip > * { direction: ltr; }
-
-    /* ── Terminal demo ── */
-    .terminal {
-      background: #080810; border: 1px solid var(--border);
-      border-radius: 12px; overflow: hidden;
-      box-shadow: 0 0 80px rgba(0,229,255,.06), 0 30px 80px rgba(0,0,0,.6);
+    /* ═══ TERMINAL ═══ */
+    .term-card {
+      background: #0a0a12; border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03);
     }
-    .term-top {
-      background: #0e0e18; padding: .8rem 1.2rem;
-      display: flex; align-items: center; gap: .5rem;
-      border-bottom: 1px solid var(--border);
+    .term-bar {
+      background: #111119; padding: .75rem 1.1rem;
+      display: flex; align-items: center; gap: .45rem;
+      border-bottom: 1px solid var(--border2);
     }
-    .term-title { margin: 0 auto; font-size: .72rem; color: var(--dim); font-family: 'JetBrains Mono', monospace; }
-    .term-body { padding: 1.4rem 1.6rem; font-family: 'JetBrains Mono', monospace; font-size: .78rem; line-height: 2; }
-    .tc { color: var(--cyan); }
-    .tg { color: var(--green); }
-    .tr { color: var(--red); }
-    .td { color: var(--dim); }
-    .ty { color: var(--yellow); }
-    .tw { color: var(--text); }
-    .cursor { display: inline-block; width: 8px; height: 1em; background: var(--cyan); vertical-align: text-bottom; animation: blink 1.1s step-end infinite; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dr { background: #ff5f57; }
+    .dy { background: #febc2e; }
+    .dg { background: #28c840; }
+    .term-ttl { margin: 0 auto; font-size: .68rem; color: var(--dim); font-family: 'SF Mono','Fira Code',monospace; }
+    .term-body { padding: 1.3rem 1.5rem; font-family: 'SF Mono','Fira Code',monospace; font-size: .77rem; line-height: 2; }
+    .tc { color: #22d3ee; } .tg { color: #34d399; } .tr { color: #f87171; }
+    .td { color: var(--dim); } .ty { color: #fbbf24; } .tw { color: var(--text); }
+    .cursor { display: inline-block; width: 7px; height: 1em; background: #a78bfa; vertical-align: text-bottom; animation: blink 1.1s step-end infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-    /* ── Stack ── */
-    .stack-wrap { display: flex; flex-wrap: wrap; gap: .6rem; }
-    .stack-chip {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .75rem; font-weight: 500;
-      background: var(--s1); border: 1px solid var(--border);
-      border-radius: 999px; padding: .35rem 1rem; color: var(--sub);
-      transition: border-color .2s, color .2s;
+    /* ═══ CODE ═══ */
+    .code-card {
+      background: #0a0a12; border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
     }
-    .stack-chip:hover { border-color: var(--cyan); color: var(--cyan); }
+    .code-bar {
+      background: #111119; padding: .75rem 1.1rem;
+      display: flex; align-items: center; gap: .45rem;
+      border-bottom: 1px solid var(--border2);
+    }
+    .code-fname { margin: 0 auto; font-size: .68rem; color: var(--dim); font-family: 'SF Mono','Fira Code',monospace; }
+    .code-body { padding: 1.5rem 1.7rem; font-family: 'SF Mono','Fira Code',monospace; font-size: .79rem; line-height: 1.9; overflow-x: auto; }
+    .ln { color: var(--dim); user-select: none; margin-right: 1.4rem; display: inline-block; width: 1.4rem; text-align: right; }
+    .kw { color: #c792ea; } .fn { color: #82aaff; } .str { color: #a3e635; } .cm { color: var(--dim); font-style: italic; } .cl { color: #fbbf24; } .pp { color: var(--violet2); }
 
-    /* ── CTA ── */
-    .cta {
-      position: relative; z-index: 1;
+    /* ═══ STACK ═══ */
+    .chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .chip {
+      font-size: .78rem; font-weight: 500;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 8px; padding: .4rem .9rem; color: var(--sub);
+      transition: border-color .2s, color .2s, background .2s;
+    }
+    .chip:hover { border-color: rgba(124,58,237,.4); color: var(--violet2); background: rgba(124,58,237,.06); }
+
+    /* ═══ CTA ═══ */
+    .cta-sec {
+      position: relative; overflow: hidden;
+      border-top: 1px solid var(--border2);
       padding: 8rem 2rem; text-align: center;
-      border-top: 1px solid var(--border);
-      overflow: hidden;
     }
-    .cta::before {
-      content: '';
-      position: absolute; top: -50%; left: 50%; transform: translateX(-50%);
-      width: 600px; height: 600px;
-      background: radial-gradient(ellipse, rgba(0,229,255,.08) 0%, transparent 70%);
-      pointer-events: none;
+    .cta-sec::before {
+      content: ''; position: absolute; top: -40%; left: 50%; transform: translateX(-50%);
+      width: 700px; height: 500px; pointer-events: none;
+      background: radial-gradient(ellipse, rgba(124,58,237,.12) 0%, transparent 65%);
     }
-    .cta h2 { font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 1rem; }
-    .cta p { color: var(--sub); font-size: 1rem; max-width: 400px; margin: 0 auto 2.5rem; line-height: 1.7; }
+    .cta-sec h2 { font-size: clamp(2rem,5vw,3.5rem); margin-bottom: .8rem; position: relative; z-index:1; }
+    .cta-sec p { color: var(--sub); font-size: .98rem; max-width: 400px; margin: 0 auto 2.5rem; line-height: 1.7; position: relative; z-index:1; }
+    .cta-btns { display: flex; gap: .7rem; justify-content: center; flex-wrap: wrap; position: relative; z-index:1; }
 
-    /* ── Footer ── */
+    /* ═══ FOOTER ═══ */
     footer {
-      border-top: 1px solid var(--border); padding: 1.6rem 2.5rem;
+      border-top: 1px solid var(--border2);
+      padding: 1.4rem 2.5rem;
       display: flex; align-items: center; justify-content: space-between;
-      flex-wrap: wrap; gap: 1rem;
+      flex-wrap: wrap; gap: .8rem;
       font-size: .78rem; color: var(--dim);
-      position: relative; z-index: 1;
     }
     footer a { color: var(--dim); text-decoration: none; transition: color .2s; }
-    footer a:hover { color: var(--cyan); }
-    .footer-links { display: flex; gap: 1.5rem; }
+    footer a:hover { color: var(--violet2); }
+    .f-links { display: flex; gap: 1.4rem; }
 
-    /* ── Divider ── */
-    .divider { height: 1px; background: var(--border); }
+    /* ═══ DIVIDER ═══ */
+    .hr { height: 1px; background: var(--border2); }
 
-    /* ── Reveal animation ── */
-    .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s ease; }
-    .reveal.visible { opacity: 1; transform: none; }
+    /* ═══ REVEAL ═══ */
+    .r { opacity: 0; transform: translateY(20px); transition: opacity .65s ease, transform .65s ease; }
+    .r.on { opacity: 1; transform: none; }
+    .r2 { transition-delay: .1s; }
+    .r3 { transition-delay: .2s; }
 
-    /* ── Responsive ── */
-    @media (max-width: 900px) {
-      .steps { grid-template-columns: repeat(2,1fr); }
-      .feat-grid { grid-template-columns: 1fr 1fr; }
-      .split { grid-template-columns: 1fr; gap: 2rem; }
-      .split.flip { direction: ltr; }
+    /* ═══ RESPONSIVE ═══ */
+    @media (max-width: 960px) {
+      .steps, .feat-grid { grid-template-columns: 1fr 1fr; }
+      .split, .split-r { grid-template-columns: 1fr; gap: 2.5rem; }
+      .split-r .split-text, .split-r .split-visual { order: unset; }
       nav ul { display: none; }
     }
     @media (max-width: 600px) {
-      .feat-grid, .thresh-grid { grid-template-columns: 1fr; }
-      .steps { grid-template-columns: 1fr; }
-      .stats-row { gap: 2rem; }
+      .feat-grid, .thresh-row, .steps { grid-template-columns: 1fr; }
+      .stats-strip { flex-direction: column; }
+      .stat-item { border-right: none; border-bottom: 1px solid var(--border2); }
     }
   </style>
 </head>
 <body>
 
-<!-- Nav -->
+<!-- ═══ NAV ═══ -->
 <nav>
   <a class="logo" href="#">
-    <div class="logo-dot"></div>
-    <span class="logo-text">semantic<span>-cache</span></span>
+    <div class="logo-icon">SC</div>
+    <span>semantic<em>-cache</em></span>
   </a>
   <ul>
     <li><a href="#how">How it works</a></li>
@@ -435,318 +423,308 @@
     <li><a href="#code">Usage</a></li>
     <li><a href="#stack">Stack</a></li>
   </ul>
-  <a class="nav-gh" href="https://github.com/dhivakarav/semantic-cache" target="_blank">
-    <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.6-4.04-1.6-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.48 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 24 12C24 5.37 18.63 0 12 0z"/></svg>
-    GitHub
-  </a>
+  <div class="nav-right">
+    <a class="nav-link" href="https://github.com/dhivakarav/semantic-cache" target="_blank">GitHub</a>
+    <a class="nav-btn" href="https://github.com/dhivakarav/semantic-cache" target="_blank">Get started →</a>
+  </div>
 </nav>
 
-<!-- Hero -->
-<section class="hero">
-  <div class="hero-glow"></div>
-  <div class="hero-glow-2"></div>
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
 
-  <div class="tag"><span class="tag-dot"></span>Final Year Project · SRM IST-Trichy · AI/ML 2027</div>
+  <div class="hero-inner">
+    <div class="hero-badge r"><span class="badge-dot"></span> OpenAI-compatible · Drop-in proxy</div>
 
-  <h1>Stop paying for<br><em>duplicate LLM calls</em></h1>
+    <h1 class="r r2">
+      LLM caching that<br>
+      <span class="grad-text">actually understands</span><br>
+      your queries
+    </h1>
 
-  <p class="hero-sub">
-    An OpenAI-compatible proxy that serves cached responses for
-    <strong>semantically equivalent prompts</strong> — not just exact matches.
-    Qdrant ANN search. Multi-tenant. Streaming. <strong>31× faster on cache hit.</strong>
-  </p>
+    <p class="hero-sub r r3">
+      A semantic proxy layer that serves cached responses for
+      <strong>semantically equivalent prompts</strong> — not just exact matches.
+      Qdrant ANN search. Multi-tenant. Streaming SSE. <strong>31× faster on cache hit.</strong>
+    </p>
 
-  <div class="hero-cta">
-    <a class="btn-a" href="https://github.com/dhivakarav/semantic-cache" target="_blank">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.6-4.04-1.6-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.48 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 24 12C24 5.37 18.63 0 12 0z"/></svg>
-      View on GitHub
-    </a>
-    <a class="btn-b" href="#how">See how it works ↓</a>
-  </div>
-
-  <div class="perf-card reveal">
-    <div class="perf-title">// latency comparison — demo run</div>
-    <div class="perf-row">
-      <div class="perf-label">
-        <span>Cache MISS → upstream</span>
-        <span class="val miss-val">126 ms</span>
-      </div>
-      <div class="bar-track"><div class="bar-fill miss-bar" data-w="100"></div></div>
+    <div class="hero-btns r">
+      <a class="btn-violet" href="https://github.com/dhivakarav/semantic-cache" target="_blank">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.6-4.04-1.6-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.48 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 24 12C24 5.37 18.63 0 12 0z"/></svg>
+        View on GitHub
+      </a>
+      <a class="btn-ghost" href="#how">See how it works ↓</a>
     </div>
-    <div class="perf-row">
-      <div class="perf-label">
-        <span>Cache HIT → Qdrant</span>
-        <span class="val hit-val">4 ms &nbsp;✓ 31× faster</span>
+
+    <div class="perf-wrap r">
+      <div class="perf-head">// latency benchmark</div>
+      <div class="perf-row">
+        <div class="perf-meta"><span>Cache MISS → upstream</span><span class="perf-val v-red">126 ms</span></div>
+        <div class="bar"><div class="bar-inner b-red" data-w="100"></div></div>
       </div>
-      <div class="bar-track"><div class="bar-fill hit-bar" data-w="3"></div></div>
-    </div>
-    <div class="perf-row" style="margin-bottom:0">
-      <div class="perf-label">
-        <span>Streaming cache replay</span>
-        <span class="val stream-val">32 ms</span>
+      <div class="perf-row">
+        <div class="perf-meta"><span>Cache HIT → Qdrant</span><span class="perf-val v-grn">4 ms &nbsp; ✓ 31× faster</span></div>
+        <div class="bar"><div class="bar-inner b-grn" data-w="3.2"></div></div>
       </div>
-      <div class="bar-track"><div class="bar-fill stream-bar" data-w="25"></div></div>
+      <div class="perf-row">
+        <div class="perf-meta"><span>Streaming cache replay</span><span class="perf-val v-cyan">32 ms</span></div>
+        <div class="bar"><div class="bar-inner b-cyan" data-w="25"></div></div>
+      </div>
     </div>
   </div>
-</section>
-
-<!-- Stats -->
-<div class="stats-row">
-  <div class="stat"><div class="stat-n"><span data-target="31">0</span><sup>×</sup></div><div class="stat-l">faster on cache hit</div></div>
-  <div class="stat"><div class="stat-n"><span data-target="4">0</span>ms</div><div class="stat-l">cache latency</div></div>
-  <div class="stat"><div class="stat-n"><span data-target="17">0</span></div><div class="stat-l">tests passing</div></div>
-  <div class="stat"><div class="stat-n"><span data-target="0">0</span></div><div class="stat-l">API keys to run tests</div></div>
-  <div class="stat"><div class="stat-n"><span data-target="1536">0</span></div><div class="stat-l">embedding dimensions</div></div>
 </div>
 
-<div class="divider"></div>
+<!-- ═══ STATS ═══ -->
+<div class="stats-strip">
+  <div class="stat-item r"><div class="stat-n"><span data-t="31">0</span>×</div><div class="stat-l">faster on cache hit</div></div>
+  <div class="stat-item r"><div class="stat-n"><span data-t="4">0</span>ms</div><div class="stat-l">cache latency</div></div>
+  <div class="stat-item r"><div class="stat-n"><span data-t="17">0</span></div><div class="stat-l">tests passing</div></div>
+  <div class="stat-item r"><div class="stat-n"><span data-t="0">0</span></div><div class="stat-l">API keys to run tests</div></div>
+  <div class="stat-item r"><div class="stat-n"><span data-t="1536">0</span></div><div class="stat-l">embedding dimensions</div></div>
+</div>
 
-<!-- How it works -->
-<div class="section reveal" id="how">
+<div class="hr"></div>
+
+<!-- ═══ HOW IT WORKS ═══ -->
+<div class="wrap"><div class="sec r" id="how">
   <div class="eyebrow">// how it works</div>
-  <h2>Every request in <em>4 steps</em></h2>
-  <p class="section-sub">Each call passes through a pipeline before touching OpenAI — most never reach the upstream at all.</p>
+  <h2>Every request in four steps</h2>
+  <p class="sub">Most requests never reach OpenAI. They're served in milliseconds from Qdrant.</p>
 
   <div class="steps">
     <div class="step">
       <span class="step-icon">🔑</span>
-      <span class="step-num">01 — FINGERPRINT</span>
+      <span class="step-num">01 — Fingerprint</span>
       <h3>Namespace the cache</h3>
-      <p>SHA-256 hash the system prompt, combine with tenant ID. This isolates one user's cache from another's entirely.</p>
+      <p>SHA-256 hash the system prompt, combine with tenant ID. Completely isolates each user's cache from others.</p>
     </div>
     <div class="step">
       <span class="step-icon">🔢</span>
-      <span class="step-num">02 — EMBED</span>
+      <span class="step-num">02 — Embed</span>
       <h3>Vectorize the query</h3>
-      <p>Pass the user turn through <code style="font-family:JetBrains Mono,monospace;font-size:.8em;color:var(--cyan)">text-embedding-3-small</code> to get a 1536-dimensional semantic vector.</p>
+      <p>The user turn is passed through <code>text-embedding-3-small</code> producing a 1536-dimensional semantic vector.</p>
     </div>
     <div class="step">
       <span class="step-icon">🔍</span>
-      <span class="step-num">03 — SEARCH</span>
+      <span class="step-num">03 — Search</span>
       <h3>ANN lookup in Qdrant</h3>
-      <p>Find the nearest cached vector. If cosine similarity clears the per-query-type threshold, serve from cache. Done.</p>
+      <p>Approximate nearest-neighbor search finds the closest cached vector. Above the per-query-type threshold — serve from cache.</p>
     </div>
     <div class="step">
       <span class="step-icon">💾</span>
-      <span class="step-num">04 — STORE</span>
+      <span class="step-num">04 — Store</span>
       <h3>Cache and return</h3>
-      <p>On a miss: forward to OpenAI, store the response in Qdrant with a TTL, return to client. Next caller gets a hit.</p>
+      <p>On a miss: forward to OpenAI, store response with TTL. The next semantically equivalent query gets a hit.</p>
     </div>
   </div>
-</div>
+</div></div>
 
-<div class="divider"></div>
+<div class="hr"></div>
 
-<!-- Terminal + copy -->
-<div class="section reveal">
+<!-- ═══ DEMO ═══ -->
+<div class="wrap"><div class="sec r">
   <div class="split">
-    <div>
-      <div class="eyebrow">// live demo</div>
-      <h2>Watch it <em>work</em></h2>
-      <p class="section-sub">Run <code style="font-family:JetBrains Mono,monospace;font-size:.85em;background:rgba(255,255,255,.06);padding:.1em .4em;border-radius:4px;color:var(--cyan)">python3 demo.py</code> — no API key, no Docker. Uses in-memory Qdrant and a mock upstream.</p>
-      <div class="thresh-grid" style="margin-top:2rem">
-        <div class="thresh t-factual"><div class="thresh-type">Factual</div><div class="thresh-val">0.96</div><div class="thresh-desc">High precision — wrong cached facts are costly</div></div>
-        <div class="thresh t-code"><div class="thresh-type">Code</div><div class="thresh-val">0.94</div><div class="thresh-desc">Similar queries share structure</div></div>
-        <div class="thresh t-creative"><div class="thresh-type">Creative</div><div class="thresh-val">0.90</div><div class="thresh-desc">Loose matches acceptable</div></div>
+    <div class="split-text">
+      <div class="eyebrow">// demo</div>
+      <h2>Run it in<br>30 seconds</h2>
+      <p class="sub" style="margin-bottom:2rem">No API key. No Docker. Uses in-memory Qdrant and a mock upstream. Everything works offline.</p>
+      <div class="thresh-row">
+        <div class="thresh th-v r"><div class="thresh-label">Factual</div><div class="thresh-n">0.96</div><div class="thresh-desc">High precision — wrong facts are costly</div></div>
+        <div class="thresh th-y r r2"><div class="thresh-label">Code</div><div class="thresh-n">0.94</div><div class="thresh-desc">Similar structure, similar answer</div></div>
+        <div class="thresh th-p r r3"><div class="thresh-label">Creative</div><div class="thresh-n">0.90</div><div class="thresh-desc">Loose matches acceptable</div></div>
       </div>
     </div>
-    <div class="terminal">
-      <div class="term-top">
-        <div class="cd cd-r"></div><div class="cd cd-y"></div><div class="cd cd-g"></div>
-        <div class="term-title">python3 demo.py</div>
-      </div>
-      <div class="term-body">
-        <div><span class="td">$</span> <span class="tc">python3 demo.py</span></div>
-        <div>&nbsp;</div>
-        <div><span class="td">── Request 1 ── Cache </span><span class="tr">MISS</span></div>
-        <div><span class="td">&nbsp;&nbsp;Upstream calls: </span><span class="ty">1</span></div>
-        <div><span class="td">&nbsp;&nbsp;Latency:        </span><span class="tw">126 ms</span></div>
-        <div><span class="td">&nbsp;&nbsp;Response:       </span><span class="tw">Paris is the capital of France.</span></div>
-        <div>&nbsp;</div>
-        <div><span class="td">── Request 2 ── Cache </span><span class="tg">HIT</span></div>
-        <div><span class="td">&nbsp;&nbsp;Upstream calls: </span><span class="tg">1  (unchanged ✓)</span></div>
-        <div><span class="td">&nbsp;&nbsp;Latency:        </span><span class="tg">4 ms  31× faster ✓</span></div>
-        <div><span class="td">&nbsp;&nbsp;Response:       </span><span class="tw">Paris is the capital of France.</span></div>
-        <div>&nbsp;</div>
-        <div><span class="td">── Request 3 ── Tenant isolated </span><span class="tr">MISS</span></div>
-        <div><span class="td">── Request 4 ── Streaming SSE </span><span class="tg">HIT</span><span class="td"> 32ms</span></div>
-        <div>&nbsp;</div>
-        <div><span class="td">&nbsp;&nbsp;Saved: </span><span class="tg">2 round-trips to OpenAI ✓</span></div>
-        <div><span class="cursor"></span></div>
+    <div class="split-visual r">
+      <div class="term-card">
+        <div class="term-bar">
+          <div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div>
+          <div class="term-ttl">python3 demo.py</div>
+        </div>
+        <div class="term-body">
+          <div><span class="td">$</span> <span class="tc">python3 demo.py</span></div>
+          <div>&nbsp;</div>
+          <div><span class="td">── Request 1 ── Cache </span><span class="tr">MISS</span></div>
+          <div><span class="td">   Upstream calls:  </span><span class="ty">1</span></div>
+          <div><span class="td">   Latency:         </span><span class="tw">126 ms</span></div>
+          <div><span class="td">   Answer:          </span><span class="tw">Paris is the capital...</span></div>
+          <div>&nbsp;</div>
+          <div><span class="td">── Request 2 ── Cache </span><span class="tg">HIT</span></div>
+          <div><span class="td">   Upstream calls:  </span><span class="tg">1 (unchanged ✓)</span></div>
+          <div><span class="td">   Latency:         </span><span class="tg">4 ms  31× faster ✓</span></div>
+          <div>&nbsp;</div>
+          <div><span class="td">── Request 3 ── Tenant </span><span class="tr">MISS</span><span class="td"> (isolated)</span></div>
+          <div><span class="td">── Request 4 ── Stream </span><span class="tg">HIT</span><span class="td">  32ms SSE ✓</span></div>
+          <div>&nbsp;</div>
+          <div><span class="tg">  ✓ Saved 2 round-trips to OpenAI</span></div>
+          <div><span class="cursor"></span></div>
+        </div>
       </div>
     </div>
   </div>
-</div>
+</div></div>
 
-<div class="divider"></div>
+<div class="hr"></div>
 
-<!-- Features -->
-<div class="section reveal" id="features">
+<!-- ═══ FEATURES ═══ -->
+<div class="wrap"><div class="sec r" id="features">
   <div class="eyebrow">// features</div>
-  <h2>Built for <em>production</em></h2>
-  <p class="section-sub">Not a toy cache — the hard engineering problems that make this real.</p>
+  <h2>Built for production</h2>
+  <p class="sub">Not a toy cache — engineering that makes this real.</p>
 
   <div class="feat-grid">
     <div class="feat">
-      <div class="feat-icon">🎯</div>
+      <div class="feat-ico">🎯</div>
       <h3>Learned Threshold Calibration</h3>
-      <p>A logistic regression classifier trained on <code>(query_A, query_B, should_cache)</code> pairs replaces fixed cosine thresholds. ~15% better recall, no increase in false positives.</p>
+      <p>A logistic regression classifier trained on <code>(query_A, query_B, should_cache)</code> pairs. ~15% better recall than a fixed cosine threshold, no extra false positives.</p>
     </div>
     <div class="feat">
-      <div class="feat-icon">🏢</div>
+      <div class="feat-ico">🏢</div>
       <h3>Multi-Tenancy</h3>
-      <p>Each tenant namespaced by <code>{tenant_id}:{system_fingerprint}</code>. Pass <code>X-Tenant-ID</code> — one tenant's responses never contaminate another's.</p>
+      <p>Every tenant's cache namespaced by <code>{tenant_id}:{system_fingerprint}</code>. Pass <code>X-Tenant-ID</code> — zero cross-contamination.</p>
     </div>
     <div class="feat">
-      <div class="feat-icon">📡</div>
+      <div class="feat-ico">📡</div>
       <h3>Streaming SSE</h3>
-      <p>Buffers streamed tokens, writes to cache, re-streams from cache on hits. Works with <code>"stream": true</code> — the client never knows the difference.</p>
+      <p>Buffers streamed tokens, writes to cache, re-streams on hits. Works with <code>"stream": true</code> — the client never knows the difference.</p>
     </div>
     <div class="feat">
-      <div class="feat-icon">⏱️</div>
+      <div class="feat-ico">⏱️</div>
       <h3>TTL Invalidation</h3>
-      <p>Every entry carries a configurable TTL. Expired entries evicted lazily on lookup. Per-namespace invalidation API for topic-drift handling.</p>
+      <p>Configurable TTL per entry. Expired entries evicted lazily on lookup. Per-namespace invalidation for topic-drift handling.</p>
     </div>
     <div class="feat">
-      <div class="feat-icon">🚀</div>
+      <div class="feat-ico">🚀</div>
       <h3>Cold-Start Pre-Warming</h3>
-      <p>Historical query logs clustered via k-means. The most representative query per centroid is pre-generated and seeded — solving the empty-cache launch problem.</p>
+      <p>Historical logs clustered via k-means on embeddings. Representative queries pre-generated and seeded into the cache at launch.</p>
     </div>
     <div class="feat">
-      <div class="feat-icon">🔌</div>
+      <div class="feat-ico">🔌</div>
       <h3>Drop-in Compatible</h3>
-      <p>Fully OpenAI-compatible. Change <code>base_url</code>, nothing else. Works with any SDK or client targeting <code>/v1/chat/completions</code>.</p>
+      <p>Fully OpenAI-compatible. Change <code>base_url</code>, nothing else. Works with any SDK or HTTP client targeting <code>/v1/chat/completions</code>.</p>
     </div>
   </div>
-</div>
+</div></div>
 
-<div class="divider"></div>
+<div class="hr"></div>
 
-<!-- Code -->
-<div class="section reveal" id="code">
-  <div class="split flip">
-    <div>
+<!-- ═══ CODE ═══ -->
+<div class="wrap"><div class="sec r" id="code">
+  <div class="split split-r">
+    <div class="split-text">
       <div class="eyebrow">// usage</div>
-      <h2>One line to <em>integrate</em></h2>
-      <p class="section-sub">Change <code style="font-family:JetBrains Mono,monospace;font-size:.85em;background:rgba(255,255,255,.06);padding:.1em .4em;border-radius:4px;color:var(--cyan)">base_url</code> to point at the proxy. Everything else is identical — same SDK, same models, same streaming.</p>
-      <div style="margin-top:2rem;display:flex;flex-direction:column;gap:.6rem">
-        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green);font-size:1rem">✓</span> Works with openai Python SDK</div>
-        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green);font-size:1rem">✓</span> Works with any HTTP client</div>
-        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green);font-size:1rem">✓</span> Streaming supported</div>
-        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green);font-size:1rem">✓</span> Multi-tenant via header</div>
+      <h2>One line to integrate</h2>
+      <p class="sub">Change <code>base_url</code> to point at the proxy. Same SDK, same models, same streaming.</p>
+      <div style="display:flex;flex-direction:column;gap:.7rem;margin-top:.5rem">
+        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Python openai SDK</div>
+        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Any HTTP client</div>
+        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Streaming via <code>stream: true</code></div>
+        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Multi-tenant via <code>X-Tenant-ID</code></div>
       </div>
     </div>
-    <div class="code-wrap">
-      <div class="code-top">
-        <div class="cd cd-r"></div><div class="cd cd-y"></div><div class="cd cd-g"></div>
-        <div class="code-file">main.py</div>
-      </div>
-      <div class="code-body"><pre><span class="ln">1</span><span class="kw">from</span> openai <span class="kw">import</span> <span class="cl">OpenAI</span>
+    <div class="split-visual">
+      <div class="code-card">
+        <div class="code-bar">
+          <div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div>
+          <div class="code-fname">main.py</div>
+        </div>
+        <div class="code-body"><pre><span class="ln">1</span><span class="kw">from</span> openai <span class="kw">import</span> <span class="cl">OpenAI</span>
 <span class="ln">2</span>
 <span class="ln">3</span>client = <span class="cl">OpenAI</span>(
 <span class="ln">4</span>    api_key=<span class="str">"your-key"</span>,
 <span class="ln">5</span>    base_url=<span class="str">"http://localhost:8000/v1"</span>,  <span class="cm"># ← only change</span>
 <span class="ln">6</span>)
 <span class="ln">7</span>
-<span class="ln">8</span><span class="cm"># Miss → upstream (~126ms)</span>
+<span class="ln">8</span><span class="cm"># Miss → upstream  (~126ms)</span>
 <span class="ln">9</span>r = client.chat.completions.<span class="fn">create</span>(
 <span class="ln">10</span>    model=<span class="str">"gpt-4o"</span>,
 <span class="ln">11</span>    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"What is Python?"</span>}],
 <span class="ln">12</span>)
 <span class="ln">13</span>
-<span class="ln">14</span><span class="cm"># Hit → Qdrant (~4ms) — semantically similar</span>
+<span class="ln">14</span><span class="cm"># Hit → Qdrant     (~4ms, semantically similar)</span>
 <span class="ln">15</span>r = client.chat.completions.<span class="fn">create</span>(
 <span class="ln">16</span>    model=<span class="str">"gpt-4o"</span>,
 <span class="ln">17</span>    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Tell me about Python"</span>}],
 <span class="ln">18</span>    extra_headers={<span class="str">"X-Tenant-ID"</span>: <span class="str">"org-123"</span>},
 <span class="ln">19</span>)</pre></div>
+      </div>
     </div>
   </div>
-</div>
+</div></div>
 
-<div class="divider"></div>
+<div class="hr"></div>
 
-<!-- Stack -->
-<div class="section reveal" id="stack">
+<!-- ═══ STACK ═══ -->
+<div class="wrap"><div class="sec r" id="stack">
   <div class="eyebrow">// stack</div>
   <h2>Built with</h2>
-  <p class="section-sub">Async Python optimised for low-latency proxying with a vector store at its core.</p>
-  <div class="stack-wrap">
-    <span class="stack-chip">FastAPI</span>
-    <span class="stack-chip">Qdrant</span>
-    <span class="stack-chip">OpenAI Embeddings</span>
-    <span class="stack-chip">scikit-learn</span>
-    <span class="stack-chip">httpx</span>
-    <span class="stack-chip">Python 3.9+</span>
-    <span class="stack-chip">SSE Streaming</span>
-    <span class="stack-chip">Docker Compose</span>
-    <span class="stack-chip">uvicorn</span>
-    <span class="stack-chip">pydantic-settings</span>
-    <span class="stack-chip">numpy</span>
-    <span class="stack-chip">k-means clustering</span>
+  <p class="sub">Async Python with a vector store at its core.</p>
+  <div class="chips">
+    <span class="chip">FastAPI</span>
+    <span class="chip">Qdrant</span>
+    <span class="chip">OpenAI Embeddings</span>
+    <span class="chip">scikit-learn</span>
+    <span class="chip">httpx</span>
+    <span class="chip">Python 3.9+</span>
+    <span class="chip">SSE Streaming</span>
+    <span class="chip">Docker Compose</span>
+    <span class="chip">uvicorn</span>
+    <span class="chip">pydantic-settings</span>
+    <span class="chip">numpy</span>
+    <span class="chip">k-means clustering</span>
   </div>
-</div>
+</div></div>
 
-<!-- CTA -->
-<div class="cta reveal">
-  <h2>Use it. Fork it. <em>Break it.</em></h2>
+<!-- ═══ CTA ═══ -->
+<div class="cta-sec r">
+  <h2>Use it. Fork it.<br><span class="grad-text">Break it.</span></h2>
   <p>Open source. 17 tests. No API key needed to run them.</p>
-  <div class="hero-cta">
-    <a class="btn-a" href="https://github.com/dhivakarav/semantic-cache" target="_blank">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.6-4.04-1.6-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.48 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 24 12C24 5.37 18.63 0 12 0z"/></svg>
+  <div class="cta-btns">
+    <a class="btn-violet" href="https://github.com/dhivakarav/semantic-cache" target="_blank">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.6-4.04-1.6-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.48 1 .11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.13 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 24 12C24 5.37 18.63 0 12 0z"/></svg>
       View on GitHub
     </a>
-    <a class="btn-b" href="https://www.linkedin.com/in/dhivakar-a-v-b58215377/" target="_blank">Connect on LinkedIn →</a>
+    <a class="btn-ghost" href="https://www.linkedin.com/in/dhivakar-a-v-b58215377/" target="_blank">Connect on LinkedIn →</a>
   </div>
 </div>
 
-<!-- Footer -->
+<!-- ═══ FOOTER ═══ -->
 <footer>
-  <span>Built by <a href="https://github.com/dhivakarav" target="_blank">Dhivakar A V</a> · SRM IST-Trichy · CSE AI/ML 2027</span>
-  <div class="footer-links">
+  <span>Built by <a href="https://github.com/dhivakarav" target="_blank">Dhivakar A V</a></span>
+  <div class="f-links">
     <a href="https://github.com/dhivakarav/semantic-cache" target="_blank">GitHub</a>
     <a href="https://www.linkedin.com/in/dhivakar-a-v-b58215377/" target="_blank">LinkedIn</a>
   </div>
 </footer>
 
 <script>
-  // Scroll reveal
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-  }, { threshold: 0.1 });
-  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  // Reveal on scroll
+  const ro = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('on'); }), { threshold: 0.08 });
+  document.querySelectorAll('.r').forEach(el => ro.observe(el));
 
-  // Stat counters
-  const counters = document.querySelectorAll('[data-target]');
-  const cObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const el = entry.target;
-      const target = +el.dataset.target;
-      if (target === 0) { el.textContent = '0'; return; }
-      let cur = 0;
-      const step = Math.ceil(target / 50);
-      const t = setInterval(() => {
-        cur = Math.min(cur + step, target);
-        el.textContent = cur.toLocaleString();
-        if (cur >= target) clearInterval(t);
-      }, 25);
-      cObserver.unobserve(el);
+  // Counters
+  const co = new IntersectionObserver(es => {
+    es.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target, t = +el.dataset.t;
+      if (t === 0) return;
+      let c = 0; const step = Math.ceil(t / 55);
+      const id = setInterval(() => { c = Math.min(c+step, t); el.textContent = c.toLocaleString(); if (c>=t) clearInterval(id); }, 22);
+      co.unobserve(el);
     });
   }, { threshold: 0.5 });
-  counters.forEach(c => cObserver.observe(c));
+  document.querySelectorAll('[data-t]').forEach(el => co.observe(el));
 
-  // Bar animations
-  const barObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      entry.target.querySelectorAll('.bar-fill').forEach(bar => {
-        setTimeout(() => { bar.style.width = bar.dataset.w + '%'; }, 200);
-      });
-      barObserver.unobserve(entry.target);
+  // Bars
+  const bo = new IntersectionObserver(es => {
+    es.forEach(e => {
+      if (!e.isIntersecting) return;
+      e.target.querySelectorAll('.bar-inner').forEach(b => { setTimeout(() => b.style.width = b.dataset.w + '%', 300); });
+      bo.unobserve(e.target);
     });
   }, { threshold: 0.5 });
-  document.querySelectorAll('.perf-card').forEach(c => barObserver.observe(c));
+  document.querySelectorAll('.perf-wrap').forEach(el => bo.observe(el));
 </script>
 </body>
 </html>
