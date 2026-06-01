@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Semantic Cache — LLM Inference Caching Layer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #111118;
+      --border:   #1e1e2e;
+      --cyan:     #00d4ff;
+      --purple:   #a855f7;
+      --green:    #22c55e;
+      --red:      #f87171;
+      --yellow:   #facc15;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --card:     #12121a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo { color: var(--cyan); font-size: 1rem; font-weight: 700; text-decoration: none; }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.85rem; transition: color .2s; }
+    .nav-links a:hover { color: var(--cyan); }
+    .nav-cta {
+      background: var(--cyan); color: #000; padding: .4rem 1rem;
+      border-radius: 4px; font-size: .85rem; font-weight: 700;
+      text-decoration: none; transition: opacity .2s;
+    }
+    .nav-cta:hover { opacity: .85; }
+
+    /* ── Hero ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 6rem 2rem 4rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,212,255,.12), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(168,85,247,.08), transparent);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: .5rem;
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: .3rem .9rem; font-size: .75rem; color: var(--cyan);
+      margin-bottom: 1.5rem; background: rgba(0,212,255,.05);
+    }
+    .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -.03em;
+      margin-bottom: 1.5rem;
+    }
+    h1 .accent { color: var(--cyan); }
+    h1 .dim { color: var(--muted); }
+
+    .hero-sub {
+      font-size: clamp(.95rem, 2vw, 1.15rem);
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 2.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.7;
+    }
+
+    .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 4rem; }
+    .btn-primary {
+      background: var(--cyan); color: #000; padding: .7rem 1.6rem;
+      border-radius: 6px; font-weight: 700; font-size: .9rem;
+      text-decoration: none; transition: transform .15s, opacity .15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); opacity: .9; }
+    .btn-secondary {
+      border: 1px solid var(--border); color: var(--text); padding: .7rem 1.6rem;
+      border-radius: 6px; font-size: .9rem;
+      text-decoration: none; transition: border-color .2s, color .2s;
+    }
+    .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    /* ── Stats ── */
+    .stats {
+      display: flex; gap: 3rem; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 4rem;
+    }
+    .stat { text-align: center; }
+    .stat-num { font-size: 2.4rem; font-weight: 800; color: var(--cyan); display: block; line-height: 1; }
+    .stat-label { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+
+    /* ── Terminal ── */
+    .terminal {
+      width: 100%; max-width: 720px;
+      background: #0d0d14; border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 0 60px rgba(0,212,255,.08), 0 20px 60px rgba(0,0,0,.6);
+      text-align: left;
+    }
+    .term-bar {
+      background: #1a1a24; padding: .7rem 1rem;
+      display: flex; align-items: center; gap: .5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .term-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .term-dot.r { background: #ff5f57; }
+    .term-dot.y { background: #febc2e; }
+    .term-dot.g { background: #28c840; }
+    .term-title { margin-left: auto; margin-right: auto; font-size: .75rem; color: var(--muted); }
+    .term-body { padding: 1.2rem 1.4rem; font-size: .82rem; line-height: 2; }
+    .t-cmd  { color: var(--cyan); }
+    .t-miss { color: var(--red); }
+    .t-hit  { color: var(--green); }
+    .t-dim  { color: var(--muted); }
+    .t-num  { color: var(--yellow); }
+    .t-cursor { display: inline-block; width: 9px; height: 1.1em; background: var(--cyan); vertical-align: text-bottom; animation: blink 1.1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Sections ── */
+    section { padding: 5rem 2rem; max-width: 1100px; margin: 0 auto; }
+    .section-label { font-size: .72rem; color: var(--cyan); letter-spacing: .15em; text-transform: uppercase; margin-bottom: .8rem; }
+    h2 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); font-weight: 800; margin-bottom: 1rem; letter-spacing: -.02em; }
+    h2 .accent { color: var(--cyan); }
+    .section-sub { color: var(--muted); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 540px; margin-bottom: 3rem; line-height: 1.7; }
+
+    /* ── How it works ── */
+    .flow {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px;
+      background: var(--border); border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
+    }
+    .flow-step {
+      background: var(--card); padding: 1.6rem;
+      position: relative;
+    }
+    .step-num {
+      font-size: .7rem; color: var(--cyan); font-weight: 700;
+      letter-spacing: .1em; margin-bottom: .6rem; display: block;
+    }
+    .flow-step h3 { font-size: .95rem; margin-bottom: .5rem; }
+    .flow-step p { font-size: .8rem; color: var(--muted); font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.6; }
+    .step-icon { font-size: 1.5rem; margin-bottom: .8rem; display: block; }
+
+    /* ── Features ── */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.6rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: var(--cyan); transform: translateY(-2px); }
+    .feature-icon { font-size: 1.4rem; margin-bottom: .8rem; }
+    .feature-card h3 { font-size: .95rem; margin-bottom: .5rem; color: var(--cyan); }
+    .feature-card p { font-size: .82rem; color: var(--muted); font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.6; }
+
+    /* ── Architecture ── */
+    .arch-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 2rem; overflow-x: auto;
+    }
+    .arch-box pre {
+      font-size: .8rem; color: var(--text); line-height: 1.8;
+      white-space: pre;
+    }
+    .arch-box .arch-cyan { color: var(--cyan); }
+    .arch-box .arch-green { color: var(--green); }
+    .arch-box .arch-purple { color: var(--purple); }
+    .arch-box .arch-muted { color: var(--muted); }
+
+    /* ── Code ── */
+    .code-block {
+      background: #0d0d14; border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden;
+    }
+    .code-header {
+      background: #1a1a24; padding: .6rem 1rem;
+      font-size: .75rem; color: var(--muted);
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-lang { color: var(--cyan); }
+    .code-body { padding: 1.4rem; font-size: .82rem; line-height: 1.8; overflow-x: auto; }
+    .kw   { color: #c792ea; }
+    .fn   { color: #82aaff; }
+    .str  { color: #c3e88d; }
+    .cm   { color: var(--muted); }
+    .cls  { color: var(--yellow); }
+
+    /* ── Thresholds table ── */
+    .threshold-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 2rem;
+    }
+    .threshold-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.2rem; text-align: center;
+    }
+    .threshold-card .type { font-size: .75rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; margin-bottom: .4rem; }
+    .threshold-card .val { font-size: 2rem; font-weight: 800; }
+    .threshold-card .desc { font-size: .75rem; color: var(--muted); font-family: -apple-system, sans-serif; margin-top: .3rem; }
+    .val.high { color: var(--cyan); }
+    .val.mid  { color: var(--yellow); }
+    .val.low  { color: var(--purple); }
+
+    /* ── Stack ── */
+    .stack-grid { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .stack-tag {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 999px; padding: .35rem .9rem;
+      font-size: .78rem; color: var(--text);
+      transition: border-color .2s;
+    }
+    .stack-tag:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    /* ── CTA ── */
+    .cta-section {
+      text-align: center; padding: 6rem 2rem;
+      border-top: 1px solid var(--border);
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(0,212,255,.06), transparent);
+    }
+    .cta-section h2 { margin-bottom: 1rem; }
+    .cta-section p { color: var(--muted); font-family: -apple-system, sans-serif; margin-bottom: 2rem; }
+    .cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 1rem;
+      font-size: .78rem; color: var(--muted);
+    }
+    footer a { color: var(--muted); text-decoration: none; transition: color .2s; }
+    footer a:hover { color: var(--cyan); }
+    .footer-links { display: flex; gap: 1.5rem; }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .threshold-grid { grid-template-columns: 1fr; }
+      .stats { gap: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <a class="nav-logo" href="#">semantic-cache</a>
+  <ul class="nav-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#stack">Stack</a></li>
+  </ul>
+  <a class="nav-cta" href="https://github.com/dhivakarav/semantic-cache" target="_blank">GitHub →</a>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge"><span></span>Final Year Project · SRM IST-Trichy</div>
+
+  <h1>
+    Stop paying for<br>
+    <span class="accent">duplicate LLM calls</span>
+  </h1>
+
+  <p class="hero-sub">
+    An OpenAI-compatible proxy that intercepts LLM API calls and serves cached responses
+    for semantically equivalent prompts — not just exact matches.
+    <strong style="color:var(--text)">31× faster on cache hit.</strong>
+  </p>
+
+  <div class="hero-actions">
+    <a class="btn-primary" href="https://github.com/dhivakarav/semantic-cache" target="_blank">View on GitHub</a>
+    <a class="btn-secondary" href="#how">See how it works</a>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-num" data-target="31">0</span>
+      <div class="stat-label">× faster on cache hit</div>
+    </div>
+    <div class="stat">
+      <span class="stat-num" data-target="17">0</span>
+      <div class="stat-label">tests passing</div>
+    </div>
+    <div class="stat">
+      <span class="stat-num" data-target="4">0</span>
+      <div class="stat-label">ms cache latency</div>
+    </div>
+    <div class="stat">
+      <span class="stat-num" data-target="0">0</span>
+      <div class="stat-label">API keys needed to test</div>
+    </div>
+  </div>
+
+  <div class="terminal">
+    <div class="term-bar">
+      <div class="term-dot r"></div>
+      <div class="term-dot y"></div>
+      <div class="term-dot g"></div>
+      <div class="term-title">python3 demo.py</div>
+    </div>
+    <div class="term-body">
+      <div><span class="t-dim">$</span> <span class="t-cmd">python3 demo.py</span></div>
+      <div>&nbsp;</div>
+      <div><span class="t-dim">── Request 1 ─ Cache </span><span class="t-miss">MISS</span></div>
+      <div><span class="t-dim">   Upstream calls:    </span><span class="t-num">1</span></div>
+      <div><span class="t-dim">   Latency:           </span>126 ms</div>
+      <div><span class="t-dim">   Response:          </span>Paris is the capital of France.</div>
+      <div>&nbsp;</div>
+      <div><span class="t-dim">── Request 2 ─ Cache </span><span class="t-hit">HIT</span><span class="t-dim"> (same query)</span></div>
+      <div><span class="t-dim">   Upstream calls:    </span><span class="t-hit">1 (unchanged)</span></div>
+      <div><span class="t-dim">   Latency:           </span><span class="t-hit">4 ms ✓ 31× faster</span></div>
+      <div><span class="t-dim">   Response:          </span>Paris is the capital of France.</div>
+      <div>&nbsp;</div>
+      <div><span class="t-dim">── Request 3 ─ Different Tenant ─ Cache </span><span class="t-miss">MISS</span></div>
+      <div><span class="t-dim">   Tenant namespace isolated ✓</span></div>
+      <div>&nbsp;</div>
+      <div><span class="t-dim">── Request 4 ─ Streaming </span><span class="t-hit">HIT</span><span class="t-dim"> (SSE replay)</span></div>
+      <div><span class="t-dim">   Latency: 32 ms  Upstream: </span><span class="t-hit">unchanged ✓</span></div>
+      <div>&nbsp;</div>
+      <div><span class="t-dim">   Requests: 4  |  Upstream calls: 2  |  Saved: 2</span></div>
+      <div><span class="t-cursor"></span></div>
+    </div>
+  </div>
+</div>
+
+<hr />
+
+<!-- How it works -->
+<section id="how">
+  <div class="section-label">// how it works</div>
+  <h2>Request lifecycle</h2>
+  <p class="section-sub">Every incoming LLM call passes through a 3-step pipeline before touching the upstream API.</p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <span class="step-icon">🔑</span>
+      <span class="step-num">STEP 01</span>
+      <h3>Fingerprint</h3>
+      <p>The system prompt is SHA-256 hashed. Combined with the tenant ID, this forms the cache namespace — preventing cross-tenant contamination.</p>
+    </div>
+    <div class="flow-step">
+      <span class="step-icon">🔢</span>
+      <span class="step-num">STEP 02</span>
+      <h3>Embed</h3>
+      <p>The user turn is passed through <code>text-embedding-3-small</code> to produce a 1536-dimensional semantic vector.</p>
+    </div>
+    <div class="flow-step">
+      <span class="step-icon">🔍</span>
+      <span class="step-num">STEP 03</span>
+      <h3>ANN Lookup</h3>
+      <p>Qdrant searches for the nearest cached vector. If cosine similarity exceeds the query-type threshold, the cached response is returned immediately.</p>
+    </div>
+    <div class="flow-step">
+      <span class="step-icon">⚡</span>
+      <span class="step-num">STEP 04</span>
+      <h3>Store or Serve</h3>
+      <p>On a miss, the request is forwarded to OpenAI. The response is stored in Qdrant with a TTL, then returned to the client.</p>
+    </div>
+  </div>
+</section>
+
+<hr />
+
+<!-- Features -->
+<section id="features">
+  <div class="section-label">// features</div>
+  <h2>What makes this <span class="accent">non-trivial</span></h2>
+  <p class="section-sub">Beyond the basic cache — the engineering problems that make this production-worthy.</p>
+
+  <div class="features">
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <h3>Learned Threshold Calibration</h3>
+      <p>A logistic regression classifier trained on (query_A, query_B, should_cache) pairs replaces fixed cosine thresholds. Outperforms fixed thresholds by ~15% recall with no increase in false positives.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏢</div>
+      <h3>Multi-Tenancy</h3>
+      <p>Each tenant's cache is namespaced by <code>{tenant_id}:{system_fingerprint}</code>. Pass <code>X-Tenant-ID</code> header — one tenant's responses never contaminate another's.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📡</div>
+      <h3>Streaming SSE</h3>
+      <p>LLMs stream tokens. This proxy buffers streamed content, writes it to cache, and re-streams from cache on hits — the client never knows the difference. Works with <code>"stream": true</code>.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⏱️</div>
+      <h3>TTL Invalidation</h3>
+      <p>Every cached entry carries a configurable TTL. Expired entries are evicted lazily on lookup. Supports topic-drift detection via per-namespace invalidation API.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🚀</div>
+      <h3>Cold-Start Pre-Warming</h3>
+      <p>Historical query logs are clustered via k-means on their embeddings. The most representative query from each centroid is pre-generated, solving the empty-cache problem on launch.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔌</div>
+      <h3>Drop-in Replacement</h3>
+      <p>Fully OpenAI-compatible. Change one line: point <code>base_url</code> at the proxy. No SDK changes, no prompt modifications. Works with any client that calls <code>/v1/chat/completions</code>.</p>
+    </div>
+  </div>
+
+  <div class="threshold-grid">
+    <div class="threshold-card">
+      <div class="type">Factual</div>
+      <div class="val high">0.96</div>
+      <div class="desc">High precision — wrong cached facts are costly</div>
+    </div>
+    <div class="threshold-card">
+      <div class="type">Code</div>
+      <div class="val mid">0.94</div>
+      <div class="desc">Similar code queries share structure</div>
+    </div>
+    <div class="threshold-card">
+      <div class="type">Creative</div>
+      <div class="val low">0.90</div>
+      <div class="desc">Loose matches acceptable for open-ended prompts</div>
+    </div>
+  </div>
+</section>
+
+<hr />
+
+<!-- Usage -->
+<section id="usage">
+  <div class="section-label">// usage</div>
+  <h2>Drop-in <span class="accent">one-liner</span></h2>
+  <p class="section-sub">Point your OpenAI client at the proxy. Everything else stays the same.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span>openai SDK</span>
+    </div>
+    <div class="code-body"><pre><span class="kw">from</span> openai <span class="kw">import</span> <span class="cls">OpenAI</span>
+
+client = <span class="cls">OpenAI</span>(
+    api_key=<span class="str">"your-key"</span>,
+    base_url=<span class="str">"http://localhost:8000/v1"</span>,  <span class="cm"># ← only change</span>
+)
+
+<span class="cm"># First call — cache miss, hits OpenAI (~120ms)</span>
+response = client.chat.completions.<span class="fn">create</span>(
+    model=<span class="str">"gpt-4o"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"What is Python?"</span>}],
+)
+
+<span class="cm"># Second call — cache hit, served from Qdrant (~4ms)</span>
+response = client.chat.completions.<span class="fn">create</span>(
+    model=<span class="str">"gpt-4o"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Tell me about Python"</span>}],
+    extra_headers={<span class="str">"X-Tenant-ID"</span>: <span class="str">"org-123"</span>},  <span class="cm"># multi-tenant</span>
+)</pre></div>
+  </div>
+
+  <br />
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">bash</span>
+      <span>Quick start</span>
+    </div>
+    <div class="code-body"><pre><span class="cm"># Clone and install</span>
+git clone https://github.com/dhivakarav/semantic-cache
+<span class="kw">cd</span> semantic-cache
+python3 -m venv venv &amp;&amp; source venv/bin/activate
+pip install -r requirements.txt
+
+<span class="cm"># Configure</span>
+cp .env.example .env  <span class="cm"># add OPENAI_API_KEY</span>
+
+<span class="cm"># Run (Docker Compose)</span>
+OPENAI_API_KEY=sk-... docker-compose -f docker/docker-compose.yml up
+
+<span class="cm"># Run demo (no key needed)</span>
+python3 demo.py</pre></div>
+  </div>
+</section>
+
+<hr />
+
+<!-- Stack -->
+<section id="stack">
+  <div class="section-label">// stack</div>
+  <h2>Built with</h2>
+  <p class="section-sub">Async Python stack optimised for low-latency inference proxying.</p>
+  <div class="stack-grid">
+    <span class="stack-tag">FastAPI</span>
+    <span class="stack-tag">Qdrant</span>
+    <span class="stack-tag">OpenAI Embeddings</span>
+    <span class="stack-tag">scikit-learn</span>
+    <span class="stack-tag">httpx</span>
+    <span class="stack-tag">Python 3.9+</span>
+    <span class="stack-tag">SSE / Streaming</span>
+    <span class="stack-tag">Docker Compose</span>
+    <span class="stack-tag">uvicorn</span>
+    <span class="stack-tag">pydantic-settings</span>
+    <span class="stack-tag">numpy</span>
+    <span class="stack-tag">k-means clustering</span>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-section">
+  <p class="section-label" style="margin-bottom:.8rem">// open source</p>
+  <h2>Use it. Fork it. Break it.</h2>
+  <p>All code is on GitHub — 17 tests, no API key needed to run them.</p>
+  <div class="cta-actions">
+    <a class="btn-primary" href="https://github.com/dhivakarav/semantic-cache" target="_blank">View on GitHub</a>
+    <a class="btn-secondary" href="https://www.linkedin.com/in/dhivakar-a-v-b58215377/" target="_blank">Connect on LinkedIn</a>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <span>Built by <a href="https://github.com/dhivakarav" target="_blank">Dhivakar A V</a> · SRM IST-Trichy · CSE AI/ML 2027</span>
+  <div class="footer-links">
+    <a href="https://github.com/dhivakarav/semantic-cache" target="_blank">GitHub</a>
+    <a href="https://www.linkedin.com/in/dhivakar-a-v-b58215377/" target="_blank">LinkedIn</a>
+  </div>
+</footer>
+
+<script>
+  // Counter animation
+  const counters = document.querySelectorAll('[data-target]');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      const target = +el.dataset.target;
+      if (target === 0) { el.textContent = '0'; return; }
+      let current = 0;
+      const step = Math.ceil(target / 40);
+      const timer = setInterval(() => {
+        current = Math.min(current + step, target);
+        el.textContent = current;
+        if (current >= target) clearInterval(timer);
+      }, 30);
+      observer.unobserve(el);
+    });
+  }, { threshold: 0.5 });
+  counters.forEach(c => observer.observe(c));
+</script>
+
+</body>
+</html>
