@@ -614,40 +614,51 @@
   <div class="split split-r">
     <div class="split-text">
       <div class="eyebrow">// usage</div>
-      <h2>One line to integrate</h2>
-      <p class="sub">Change <code>base_url</code> to point at the proxy. Same SDK, same models, same streaming.</p>
+      <h2>Up in 30 seconds,<br>one line to integrate</h2>
+      <p class="sub">Pull from Docker Hub, point <code>base_url</code> at the proxy. Same SDK, same models, same streaming.</p>
       <div style="display:flex;flex-direction:column;gap:.7rem;margin-top:.5rem">
+        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> One <code>docker run</code> to start</div>
         <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Python openai SDK</div>
-        <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Any HTTP client</div>
         <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Streaming via <code>stream: true</code></div>
         <div style="display:flex;align-items:center;gap:.8rem;font-size:.82rem;color:var(--sub)"><span style="color:var(--green)">✓</span> Multi-tenant via <code>X-Tenant-ID</code></div>
       </div>
     </div>
-    <div class="split-visual">
+    <div class="split-visual" style="display:flex;flex-direction:column;gap:.8rem">
+      <div class="code-card">
+        <div class="code-bar">
+          <div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div>
+          <div class="code-fname">terminal</div>
+        </div>
+        <div class="code-body"><pre><span class="cm"># 1. Pull and run</span>
+docker run \
+  -e OPENAI_API_KEY=sk-... \
+  -p 8000:8000 \
+  dhivakarav/semantic-cache</pre></div>
+      </div>
       <div class="code-card">
         <div class="code-bar">
           <div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div>
           <div class="code-fname">main.py</div>
         </div>
-        <div class="code-body"><pre><span class="ln">1</span><span class="kw">from</span> openai <span class="kw">import</span> <span class="cl">OpenAI</span>
-<span class="ln">2</span>
-<span class="ln">3</span>client = <span class="cl">OpenAI</span>(
-<span class="ln">4</span>    api_key=<span class="str">"your-key"</span>,
-<span class="ln">5</span>    base_url=<span class="str">"http://localhost:8000/v1"</span>,  <span class="cm"># ← only change</span>
-<span class="ln">6</span>)
-<span class="ln">7</span>
-<span class="ln">8</span><span class="cm"># Miss → upstream  (~126ms)</span>
-<span class="ln">9</span>r = client.chat.completions.<span class="fn">create</span>(
-<span class="ln">10</span>    model=<span class="str">"gpt-4o"</span>,
-<span class="ln">11</span>    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"What is Python?"</span>}],
-<span class="ln">12</span>)
-<span class="ln">13</span>
-<span class="ln">14</span><span class="cm"># Hit → Qdrant     (~4ms, semantically similar)</span>
-<span class="ln">15</span>r = client.chat.completions.<span class="fn">create</span>(
-<span class="ln">16</span>    model=<span class="str">"gpt-4o"</span>,
-<span class="ln">17</span>    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Tell me about Python"</span>}],
-<span class="ln">18</span>    extra_headers={<span class="str">"X-Tenant-ID"</span>: <span class="str">"org-123"</span>},
-<span class="ln">19</span>)</pre></div>
+        <div class="code-body"><pre><span class="kw">from</span> openai <span class="kw">import</span> <span class="cl">OpenAI</span>
+
+client = <span class="cl">OpenAI</span>(
+    api_key=<span class="str">"your-key"</span>,
+    base_url=<span class="str">"http://localhost:8000/v1"</span>,  <span class="cm"># ← only change</span>
+)
+
+<span class="cm"># Miss → upstream  (~126ms)</span>
+r = client.chat.completions.<span class="fn">create</span>(
+    model=<span class="str">"gpt-4o"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"What is Python?"</span>}],
+)
+
+<span class="cm"># Hit → Qdrant     (~4ms, semantically similar)</span>
+r = client.chat.completions.<span class="fn">create</span>(
+    model=<span class="str">"gpt-4o"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Tell me about Python"</span>}],
+    extra_headers={<span class="str">"X-Tenant-ID"</span>: <span class="str">"org-123"</span>},
+)</pre></div>
       </div>
     </div>
   </div>
