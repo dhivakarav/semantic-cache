@@ -1,7 +1,7 @@
 # Semantic Cache — Distributed Semantic Caching Layer for LLM Inference
     
 An OpenAI-compatible proxy that intercepts LLM API calls and serves cached responses for **semantically equivalent prompts** — not just exact matches.
-
+   
 Instead of re-computing nearly identical queries, it embeds the user turn, runs approximate nearest-neighbor search against a Qdrant vector store, and returns a cached response when the cosine similarity exceeds a configurable threshold.
 
 ---
