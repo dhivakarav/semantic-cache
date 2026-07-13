@@ -6,7 +6,7 @@ Instead of re-computing nearly identical queries, it embeds the user turn, runs 
 
 ---   
  
-## Demo
+## Demo 
 
 ```
 Request 1 — Cache MISS        → forwarded to upstream    126 ms
